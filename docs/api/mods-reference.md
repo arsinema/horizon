@@ -1,7 +1,7 @@
 <!-- Generated from crates/horizon-mod-sdk/wit/horizon.wit and the manifest's capabilities by crates/horizon-mods/tests/api_reference.rs; a test fails when this file is out of date. Update it with: HORIZON_WRITE_DOCS=1 cargo test -p horizon-mods --features pack --test api_reference -->
 # Mod API reference
 
-The contract between Horizon and its mods: the WIT package `horizon:mods@0.1.0`, every interface, type, function and hook in it, and the capabilities a manifest may list. The guide is [mods.md](../mods.md); stability and versions: [stability.md](stability.md). Manifest `api` lines this game serves: `0.1`, `0.2`, `0.3`.
+The contract between Horizon and its mods: the WIT package `horizon:mods@0.1.0`, every interface, type, function and hook in it, and the capabilities a manifest may list. The guide is [mods.md](../mods.md); stability and versions: [stability.md](stability.md). Manifest `api` lines this game serves: `0.1`, `0.2`, `0.3`, `0.4`.
 
 ## Capabilities
 
@@ -19,6 +19,7 @@ The contract between Horizon and its mods: the WIT package `horizon:mods@0.1.0`,
 | `players` | [`players`](#players) | see who is on the server and message them |
 | `world` | [`world`](#world) | read and change the world's blocks |
 | `recipes` | [`recipes`](#recipes) | read the game's recipes and items and which recipes you know, place recipes in your crafting grid and, in creative mode, give you items |
+| `block-entities` | [`machine`](#machine) | run its blocks' machines in your worlds |
 
 ## World `horizon-mod`
 
@@ -61,6 +62,20 @@ The game's side of capability `recipes` (imports only).
 
 - Imports (what the game offers): `recipes`, `browser`
 - Exports (what the mod provides): 
+
+## World `horizon-machine-mod`
+
+A mod with block entities: the SDK builds every mod against this world. Mods built for `horizon-ui-mod` or `horizon-mod` alone (no `block-entities` export) still load.
+
+- Imports (what the game offers): `machine`, `ui`, `render`, `input`, `recipes`, `browser`, `log`, `game`, `chat`, `hud`, `storage`, `command`
+- Exports (what the mod provides): `block-entities`, `ui-events`, `events`
+
+## World `machine-host`
+
+The game's side of `horizon-machine-mod` beyond `horizon-ui-mod`.
+
+- Imports (what the game offers): `machine`
+- Exports (what the mod provides): `block-entities`
 
 ## `log`
 
@@ -768,3 +783,69 @@ An argument's value, parsed as its kind says.
 | `command` | `func(player: player, name: string, args: string, values: list<tuple<string, argument-value>>) -> result<option<string>, string>` | `/name args` typed by `player`: ok(some(text)) is their feedback, err(text) their error in red. `values` holds each argument given, by name, in order (an optional one left out isn't there); a line that doesn't parse never reaches the mod: the player gets vanilla's error. |
 | `block-broken` | `func(player: player, pos: block-pos, state: string)` | A player broke the block at `pos` in their dimension: `state` is what was there, as `minecraft:oak_log[axis=y]`. |
 | `block-placed` | `func(player: player, pos: block-pos, state: string)` | A player placed `state` at `pos` in their dimension. |
+
+## `machine`
+
+Access: capability `block-entities`.
+
+Capability `block-entities` (API 0.4): what the code of a mod's block entities may read and change while the game ticks them. A handle names one block entity and is valid only during the `block-entities` call it was passed to; slots and block state belong to the game (hoppers, menus, drops and saves see them), the mod keeps the rest of its state itself.
+
+### record `item-stack`
+
+An item and how many. Item components are not carried yet.
+
+| Field | Type | |
+| --- | --- | --- |
+| `id` | `string` | `minecraft:coal`, `<mod>:<path>`, ... |
+| `count` | `u32` |  |
+
+### enum `cooking-kind`
+
+| Case | |
+| --- | --- |
+| `smelting` |  |
+| `blasting` |  |
+| `smoking` |  |
+| `campfire` |  |
+
+### record `cooking-recipe`
+
+| Field | Type | |
+| --- | --- | --- |
+| `output` | `item-stack` |  |
+| `cooking-time` | `u32` | Ticks the recipe takes in its vanilla block. |
+| `experience` | `f32` |  |
+
+| Function | Signature | What it does |
+| --- | --- | --- |
+| `get-slot` | `func(handle: u32, slot: u32) -> option<item-stack>` | The block entity's slot, none when empty or out of range. |
+| `set-slot` | `func(handle: u32, slot: u32, stack: option<item-stack>) -> bool` | Empties the slot with none; a stack over the item's maximum is cut to it. False for a slot out of range, an unknown item or a handle not in this call. |
+| `get-property` | `func(handle: u32, name: string) -> option<string>` | A property of the block entity's block state (`lit` -> `true`). |
+| `set-property` | `func(handle: u32, name: string, value: string) -> bool` | False when the block has no such property or value. |
+| `max-stack-size` | `func(id: string) -> u32` | The most of `id` one slot holds; 0 for an unknown item. |
+| `burn-time` | `func(id: string) -> u32` | Ticks `id` burns as a furnace's fuel (the game's fuel values), 0 if it is no fuel. |
+| `remainder` | `func(id: string) -> option<string>` | What is left of `id` once used up as fuel or an ingredient (a bucket from a lava bucket). |
+| `cooking` | `func(kind: cooking-kind, input: string) -> option<cooking-recipe>` | The data pack's cooking recipe of `kind` for `input`. |
+
+## `block-entities`
+
+Access: exported by the mod: the game calls it.
+
+What the game calls on a mod's block entities (API 0.4). Only for the blocks `types` names, which must be the mod's own.
+
+### record `block-entity-type`
+
+| Field | Type | |
+| --- | --- | --- |
+| `block` | `string` | The mod's block, `<mod>:<path>`. |
+| `slots` | `u32` | Slots the game keeps for each of its block entities. |
+| `ticks` | `bool` | Call `tick` every server tick while it is loaded. |
+
+| Function | Signature | What it does |
+| --- | --- | --- |
+| `types` | `func() -> list<block-entity-type>` | Once, after `init`. |
+| `create` | `func(handle: u32, block: string, saved: list<u8>)` | A block entity was placed or loaded: `saved` is what `save` returned for it, empty for a new one. |
+| `tick` | `func(handles: list<u32>)` | One server tick of every loaded ticking block entity of this mod. |
+| `save` | `func(handle: u32) -> list<u8>` | Its state for the save, beside the slots the game saves itself. |
+| `remove` | `func(handle: u32)` | Broken or unloaded: forget it. |
+| `data` | `func(handle: u32) -> list<s32>` | The values its menu shows (vanilla's `ContainerData`: progress bars, fuel left). |

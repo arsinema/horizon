@@ -106,6 +106,10 @@ What real mods need next, in the order modpacks and servers need it:
 
 ## Changelog
 
+- API 0.4 (preview): capability `block-entities`: the `machine` interface (slots and block state of the block
+  entities lent to a `tick` call; the game's item, fuel and cooking-recipe facts) and the `block-entities` export
+  (`types`, `create`, `tick`, `save`, `remove`, `data`). Runtime and SDK (`Mod::block_entity_types` and the other
+  block entity methods); the game does not create, tick or save mod block entities yet. Mod API level 8.
 - API 0.3: typed server commands: `registration.commands` lists each command's arguments (`argument-kind`: word,
   text, integer, number, boolean, player, block-pos), sent in players' command trees and parsed by the server;
   `command` gets their values. SDK `Registration::command_with`, `Argument`, `Args`.

@@ -17,7 +17,9 @@ pub const API: &str = "0.1";
 /// `assets/` and `data/` in the `.hmod`, with blocks and items declared in
 /// `data/<id>/horizon/` (docs/modpacks.md). Code still links API 0.1.
 /// 0.3 is a server mod (experimental): the `horizon-server-mod` world.
-pub const APIS: [&str; 3] = [API, "0.2", SERVER_API];
+/// 0.4 is 0.2 plus block entities: capability `block-entities` and the
+/// `block-entities` export (docs/mods.md).
+pub const APIS: [&str; 4] = [API, "0.2", SERVER_API, "0.4"];
 /// The line of server mods, experimental: `side = "server"`.
 pub const SERVER_API: &str = "0.3";
 /// Namespaces no mod may claim: vanilla's, the convention tags' (mods add
@@ -40,7 +42,8 @@ pub struct Manifest {
     pub description: String,
     #[serde(default)]
     pub authors: Vec<String>,
-    /// The API line the mod was built for: `0.1`, or `0.2` for content.
+    /// The API line the mod was built for: `0.1`, `0.2` for content, `0.4`
+    /// for block entities.
     pub api: String,
     #[serde(default)]
     pub side: Side,
@@ -103,9 +106,12 @@ pub enum Capability {
     /// The recipes and items the game knows, for recipe viewers
     /// (interface `recipes`).
     Recipes,
+    /// Block entities for the mod's own blocks (API 0.4): the `machine`
+    /// interface and the `block-entities` export.
+    BlockEntities,
 }
 impl Capability {
-    pub const ALL: [Capability; 12] = [
+    pub const ALL: [Capability; 13] = [
         Capability::GameRead,
         Capability::Chat,
         Capability::Hud,
@@ -118,6 +124,7 @@ impl Capability {
         Capability::Players,
         Capability::World,
         Capability::Recipes,
+        Capability::BlockEntities,
     ];
     /// Whether a server mod may have it: the others act on a local player.
     pub fn on_server(self) -> bool {
@@ -141,6 +148,7 @@ impl Capability {
             Capability::Players => "players",
             Capability::World => "world",
             Capability::Recipes => "recipes",
+            Capability::BlockEntities => "machine",
         }
     }
     /// May change in any release: a mod uses it only with
@@ -170,6 +178,7 @@ impl Capability {
             Capability::Recipes => {
                 "read the game's recipes and items and which recipes you know, place recipes in your crafting grid and, in creative mode, give you items"
             }
+            Capability::BlockEntities => "run its blocks' machines in your worlds",
         }
     }
     /// The capability a component import needs, `Ok(None)` for one every
@@ -211,6 +220,7 @@ impl fmt::Display for Capability {
             Capability::Players => "players",
             Capability::World => "world",
             Capability::Recipes => "recipes",
+            Capability::BlockEntities => "block-entities",
         };
         f.write_str(name)
     }
@@ -263,6 +273,11 @@ impl Manifest {
             return Err(format!(
                 "{MANIFEST}: capability {c} is experimental and may change in any release: \
                  add experimental = [\"{c}\"] to use it"
+            ));
+        }
+        if m.capabilities.contains(&Capability::BlockEntities) && m.api != "0.4" {
+            return Err(format!(
+                "{MANIFEST}: capability block-entities needs api = \"0.4\""
             ));
         }
         if !m.namespaces.is_empty() && !m.capabilities.contains(&Capability::Registries) {
@@ -485,8 +500,8 @@ capabilities = ["game-read", "hud"]
     fn refuses_bad_ids_and_apis() {
         let bad_id = EXAMPLE.replace("coords_hud", "Coords HUD");
         assert!(Manifest::parse(&bad_id).unwrap_err().contains("is not"));
-        let bad_api = EXAMPLE.replace("api = \"0.1\"", "api = \"0.4\"");
-        assert!(Manifest::parse(&bad_api).unwrap_err().contains("API 0.4"));
+        let bad_api = EXAMPLE.replace("api = \"0.1\"", "api = \"0.9\"");
+        assert!(Manifest::parse(&bad_api).unwrap_err().contains("API 0.9"));
         let unknown = format!("{EXAMPLE}network = true\n");
         assert!(Manifest::parse(&unknown).is_err());
     }
@@ -528,6 +543,20 @@ capabilities = ["game-read", "hud"]
         assert!(with("\"\"").unwrap_err().contains("is not"));
         let code = format!("{EXAMPLE}namespaces = [\"kaisyn\"]\n");
         assert!(Manifest::parse(&code).unwrap_err().contains("registries"));
+    }
+
+    #[test]
+    fn block_entities_need_api_0_4() {
+        let base = "id = \"ironfurnaces\"\nname = \"I\"\nversion = \"1\"\nside = \"both\"\n";
+        let caps = "capabilities = [\"registries\", \"block-entities\"]\n";
+        let m = Manifest::parse(&format!("{base}api = \"0.4\"\n{caps}")).unwrap();
+        assert_eq!(m.check_imports(["horizon:mods/machine@0.1.0"]), Ok(()));
+        let old = Manifest::parse(&format!("{base}api = \"0.2\"\n{caps}")).unwrap_err();
+        assert!(old.contains("needs api = \"0.4\""), "{old}");
+        let without = "capabilities = [\"registries\"]\n";
+        let m = Manifest::parse(&format!("{base}api = \"0.4\"\n{without}")).unwrap();
+        let e = m.check_imports(["horizon:mods/machine@0.1.0"]).unwrap_err();
+        assert!(e.contains("block-entities"), "{e}");
     }
 
     #[test]

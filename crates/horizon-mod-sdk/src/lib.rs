@@ -21,26 +21,34 @@
 //! ```
 //!
 //! Every interface but `log` is a capability: list the ones the mod uses in
-//! `horizon-mod.toml` (`game-read`, `chat`, `hud`, `storage`, `command`, `ui`;
-//! a server mod `storage` and `players`). Server mods: [`server`].
+//! `horizon-mod.toml` (`game-read`, `chat`, `hud`, `storage`, `command`, `ui`,
+//! and `block-entities` for [`machine`] with `api = "0.4"`; a server mod
+//! `storage` and `players`). Server mods: [`server`].
 //!
 //! Widgets (capability `ui`): a mod shows a screen it owns with
 //! [`ui::open_screen`] and a page in Options > Mods with
 //! [`ui::set_settings`]; what the player does with them comes back as
 //! [`Mod::ui_select`], [`Mod::ui_closed`] and [`Mod::ui_settings_opened`].
+//!
+//! Block entities (API 0.4): a mod whose blocks are machines returns their
+//! types from [`Mod::block_entity_types`], keeps each one's state by its
+//! handle, and reads and writes its slots and block state through [`machine`]
+//! during [`Mod::tick_block_entities`]. The game owns the slots (hoppers,
+//! menus, drops and saves see them); the mod saves the rest.
 
 wit_bindgen::generate!({
     path: "wit",
-    world: "horizon-ui-mod",
+    world: "horizon-machine-mod",
     pub_export_macro: true,
     export_macro_name: "__export_horizon_mod",
     default_bindings_module: "horizon_mod_sdk",
 });
 
+pub use exports::horizon::mods::block_entities::{BlockEntityType, Guest as __BlockEntitiesGuest};
 pub use exports::horizon::mods::events::{Guest as __Guest, Registration};
 pub use exports::horizon::mods::ui_events::Guest as __UiEventsGuest;
 pub use horizon::mods::{
-    browser, chat, command, game, hud, input, log, recipes, render, storage, ui,
+    browser, chat, command, game, hud, input, log, machine, recipes, render, storage, ui,
 };
 
 /// The game's calls into a mod. Only the hooks [`Registration`] asks for
@@ -68,6 +76,29 @@ pub trait Mod: Sized + 'static {
     /// The player opened the mod's settings page (capability `ui`): call
     /// [`ui::set_settings`] for fresh widgets.
     fn ui_settings_opened(&mut self) {}
+
+    /// The mod's block entity types, once after [`Mod::init`]: each for one
+    /// of its own blocks. Needs capability `block-entities`.
+    fn block_entity_types(&mut self) -> Vec<BlockEntityType> {
+        Vec::new()
+    }
+    /// A block entity was placed (`saved` empty) or loaded (`saved` is what
+    /// [`Mod::save_block_entity`] returned).
+    fn create_block_entity(&mut self, _handle: u32, _block: &str, _saved: &[u8]) {}
+    /// One server tick of every loaded ticking block entity of the mod; its
+    /// slots and block state are readable and writable through [`machine`]
+    /// during this call only.
+    fn tick_block_entities(&mut self, _handles: &[u32]) {}
+    /// Its state for the save, beside the slots the game saves.
+    fn save_block_entity(&mut self, _handle: u32) -> Vec<u8> {
+        Vec::new()
+    }
+    /// Broken or unloaded.
+    fn remove_block_entity(&mut self, _handle: u32) {}
+    /// The values its menu shows (progress bars, fuel left).
+    fn block_entity_data(&mut self, _handle: u32) -> Vec<i32> {
+        Vec::new()
+    }
 }
 
 impl Registration {
@@ -161,6 +192,32 @@ macro_rules! export_mod {
                 }
                 fn settings_opened() {
                     with(|m| $crate::Mod::ui_settings_opened(m))
+                }
+            }
+            impl $crate::__BlockEntitiesGuest for Export {
+                fn types() -> Vec<$crate::BlockEntityType> {
+                    let mut out = Vec::new();
+                    with(|m| out = $crate::Mod::block_entity_types(m));
+                    out
+                }
+                fn create(handle: u32, block: String, saved: Vec<u8>) {
+                    with(|m| $crate::Mod::create_block_entity(m, handle, &block, &saved))
+                }
+                fn tick(handles: Vec<u32>) {
+                    with(|m| $crate::Mod::tick_block_entities(m, &handles))
+                }
+                fn save(handle: u32) -> Vec<u8> {
+                    let mut out = Vec::new();
+                    with(|m| out = $crate::Mod::save_block_entity(m, handle));
+                    out
+                }
+                fn remove(handle: u32) {
+                    with(|m| $crate::Mod::remove_block_entity(m, handle))
+                }
+                fn data(handle: u32) -> Vec<i32> {
+                    let mut out = Vec::new();
+                    with(|m| out = $crate::Mod::block_entity_data(m, handle));
+                    out
                 }
             }
             // Only WebAssembly has the component's exports: a host build (cargo test or
