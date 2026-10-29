@@ -3,7 +3,7 @@
 //! from the data-driven `context_int_provider`/`context_float_provider` files.
 pub use crate::chunk::block_entity::{
     Banner, Beacon, BlockEntity, Campfire, ChiseledBookshelf, Crafter, CreakingHeart, EndGateway,
-    Furnace, FurnaceKind, Jukebox, Lectern, Skull, SkullSkin,
+    Furnace, FurnaceKind, Jukebox, Lectern, ModMachine, Skull, SkullSkin,
 };
 use crate::{
     crafting::Recipes,
@@ -259,6 +259,15 @@ impl BlockEntity {
         if name == "minecraft:chiseled_bookshelf" {
             return Some(Self::ChiseledBookshelf(Box::default()));
         }
+        if let Some(t) = crate::mod_machines::lookup(name) {
+            return Some(Self::Mod(Box::new(ModMachine {
+                block: t.block,
+                slots: vec![None; t.slots],
+                ticks: t.ticks,
+                handle: 0,
+                saved: Vec::new(),
+            })));
+        }
         let size = match name {
             "minecraft:chest" | "minecraft:trapped_chest" | "minecraft:barrel" => 27,
             n if n.ends_with("copper_chest") => 27,
@@ -300,6 +309,7 @@ impl BlockEntity {
             Self::DaylightDetector => "minecraft:daylight_detector",
             Self::Campfire(_) => "minecraft:campfire",
             Self::ChiseledBookshelf(_) => "minecraft:chiseled_bookshelf",
+            Self::Mod(m) => m.block,
         }
     }
     pub fn contents(&self) -> Vec<ItemStack> {
@@ -325,6 +335,7 @@ impl BlockEntity {
             Self::Crafter(c) => c.items.iter().flatten().cloned().collect(),
             Self::Campfire(c) => c.items.iter().flatten().cloned().collect(),
             Self::ChiseledBookshelf(b) => b.items.iter().flatten().cloned().collect(),
+            Self::Mod(m) => m.slots.iter().flatten().cloned().collect(),
         }
     }
     pub fn slots(&self) -> &[Option<ItemStack>] {
@@ -343,6 +354,7 @@ impl BlockEntity {
             | Self::DaylightDetector => &[],
             Self::Crafter(c) => &c.items,
             Self::ChiseledBookshelf(b) => &b.items,
+            Self::Mod(m) => &m.slots,
             Self::CreakingHeart(_)
             | Self::Spawner(_)
             | Self::TrialSpawner(_)
@@ -369,6 +381,7 @@ impl BlockEntity {
             | Self::DaylightDetector => &mut [],
             Self::Crafter(c) => &mut c.items,
             Self::ChiseledBookshelf(b) => &mut b.items,
+            Self::Mod(m) => &mut m.slots,
             Self::CreakingHeart(_)
             | Self::Spawner(_)
             | Self::TrialSpawner(_)
@@ -380,7 +393,7 @@ impl BlockEntity {
     }
 }
 pub use crate::providers::Providers;
-fn remainder(item: &str) -> Option<&'static str> {
+pub fn remainder(item: &str) -> Option<&'static str> {
     match item {
         "minecraft:lava_bucket" | "minecraft:water_bucket" | "minecraft:milk_bucket" => {
             Some("minecraft:bucket")

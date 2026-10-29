@@ -112,6 +112,7 @@ mod mod_browser;
 #[cfg(feature = "mods")]
 mod mod_browser_recipes;
 mod mod_input;
+mod mod_machines;
 #[cfg(feature = "mods")]
 mod mod_recipes;
 mod mod_render;
@@ -6250,7 +6251,8 @@ impl Game<'_> {
                 | BlockEntity::Skull(_)
                 | BlockEntity::DaylightDetector
                 | BlockEntity::Campfire(_)
-                | BlockEntity::ChiseledBookshelf(_),
+                | BlockEntity::ChiseledBookshelf(_)
+                | BlockEntity::Mod(_),
             ) => {}
             None => {
                 v.extend((0..self.craft_size * self.craft_size).map(|i| 100 + i));
@@ -6524,7 +6526,8 @@ impl Game<'_> {
                     | BlockEntity::Skull(_)
                     | BlockEntity::DaylightDetector
                     | BlockEntity::Campfire(_)
-                    | BlockEntity::ChiseledBookshelf(_),
+                    | BlockEntity::ChiseledBookshelf(_)
+                    | BlockEntity::Mod(_),
                 ) => {}
                 None if self.mount_active() => self.draw_mount_background(batch, ox, oy),
                 None => {

@@ -27,6 +27,7 @@ impl Game<'_> {
         let ticking = self.block_ticking_area();
         let mut spawners = Vec::new();
         let mut trial_spawners = Vec::new();
+        let mut machines = Vec::new();
         self.item_columns = Some(Default::default());
         for slot in self.world.block_entity_tickers() {
             let pos = slot.0;
@@ -59,9 +60,12 @@ impl Game<'_> {
                 Some(BlockEntity::Brewing(_)) => self.tick_brewing_stand(pos)?,
                 Some(BlockEntity::DaylightDetector) => self.tick_daylight_detector(pos),
                 Some(BlockEntity::Campfire(_)) => self.tick_campfire(pos)?,
+                Some(BlockEntity::Mod(_)) => machines.push(pos),
                 _ => {}
             }
         }
+        // A mod's machines tick together, in one call per mod.
+        self.tick_mod_machines(&machines);
         // Items move between passes: the columns hold for this one only.
         self.item_columns = None;
         self.update_song_volumes();
@@ -108,6 +112,9 @@ impl Game<'_> {
                         if record { Ticking::Yes } else { Ticking::Idle }
                     }
                     n if FurnaceKind::from_block(n).is_some() => Ticking::Yes,
+                    n if horizon_client::mod_machines::lookup(n).is_some_and(|t| t.ticks) => {
+                        Ticking::Yes
+                    }
                     _ => Ticking::No,
                 }
             })

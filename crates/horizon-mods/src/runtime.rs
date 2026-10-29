@@ -238,11 +238,15 @@ pub enum Runs {
     Both,
 }
 impl Runs {
-    fn starts(self, side: Side) -> bool {
+    fn starts(self, m: &Manifest) -> bool {
+        // A block-entity mod (API 0.4) is a client mod that also belongs to
+        // the world: its machines tick where blocks are simulated, which in
+        // single player is the server thread's game.
+        let machines = m.capabilities.contains(&Capability::BlockEntities);
         match self {
             Runs::Both => true,
-            Runs::Client => side != Side::Server,
-            Runs::Server => side == Side::Server,
+            Runs::Client => m.side != Side::Server,
+            Runs::Server => m.side == Side::Server || machines,
         }
     }
 }
@@ -572,7 +576,7 @@ impl Mods {
                 Ok(package) => {
                     let on = enabled(&package.manifest.id);
                     entry.manifest = Some(package.manifest.clone());
-                    if on && !runs.starts(package.manifest.side) {
+                    if on && !runs.starts(&package.manifest) {
                         entry.status = Status::Elsewhere;
                     } else if on {
                         // Content is read before the world loads; a mod whose
@@ -1369,6 +1373,18 @@ impl Mods {
             .iter()
             .filter_map(|e| e.run.as_ref())
             .flat_map(|r| r.types.iter())
+    }
+
+    /// Whether `handle` is a live block entity: false after its mod
+    /// reloaded or stopped, when the game must create it again.
+    pub fn has_block_entity(&self, handle: u32) -> bool {
+        self.handles.contains_key(&handle)
+    }
+
+    /// The handles of every live block entity, for the game to drop the ones
+    /// whose block is gone ([`Mods::remove_block_entity`]).
+    pub fn block_entity_handles(&self) -> Vec<u32> {
+        self.handles.keys().copied().collect()
     }
 
     /// The running mod whose block entity type is `block`'s, and the type.

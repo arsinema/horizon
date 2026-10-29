@@ -12,7 +12,7 @@ folder, loads no runtime and plays exactly like vanilla 26.3.
 
 | Part | Where | State |
 |---|---|---|
-| The contract (WIT) | `crates/horizon-mod-sdk/wit/horizon.wit` | 0.1: log, game-read, chat, hud, storage, command, ui; tick, frame, chat and command hooks. 0.4 preview: block entities (runtime only, not in the game yet) |
+| The contract (WIT) | `crates/horizon-mod-sdk/wit/horizon.wit` | 0.1: log, game-read, chat, hud, storage, command, ui; tick, frame, chat and command hooks. 0.4 preview: block entities (no menus yet) |
 | SDK for mod authors | `crates/horizon-mod-sdk` | 0.1 |
 | Example mods | `crates/horizon-mod-sdk/examples/coords-hud`, `examples/predator-missile` | coordinates, facing and time HUD, `/where`, `/coords`; `/missile`, a guided missile from vanilla commands |
 | Horizon's official mods | `mods/official/` | the extras moving to the registry: FPS Counter (`fps-overlay`), Keystrokes, Zoom, Minimap; Far View (`far-view`), distant terrain; and Recipes, a recipe viewer |
@@ -470,8 +470,9 @@ none.
 
 The first piece of the machines tier ([research/code-mods-plan.md](research/code-mods-plan.md)):
 a mod with `api = "0.4"` and capability `block-entities` gives its own blocks
-block entities whose code ticks in the sandbox. The runtime and the SDK have
-it; the game does not create, tick or save them yet (next step in the plan).
+block entities whose code ticks in the sandbox. The runtime, the SDK and the
+game have it: no menu yet (a player cannot open a machine's slots), hoppers
+reach them as they reach any container.
 
 | Part | What |
 |---|---|
@@ -489,6 +490,15 @@ it; the game does not create, tick or save them yet (next step in the plan).
   at most once, at most 256 slots. A component that exports block entities
   without the capability does not start.
 - Components built before 0.4 (no `block-entities` export) load as before.
+- **In the game** (`BlockEntity::Mod`): a block with a type gets one when placed
+  or loaded; the game keeps its slots, saved in the chunk as `Items`, and the
+  mod's own bytes as `ModData`. The mod runs where blocks are simulated (the
+  server thread in single player, a LAN host, the dedicated server), and is
+  also started in the window like any client mod. The game reads `save` back
+  once a second, so what a chunk keeps of the mod's state is at most that old
+  when the chunk unloads. A chunk's entry for a mod that is not running is not
+  loaded. Block entities whose block broke or chunk unloaded are `remove`d
+  within ten seconds.
 
 ### Server mods (API 0.3, experimental)
 

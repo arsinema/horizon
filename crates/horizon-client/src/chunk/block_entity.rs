@@ -76,6 +76,22 @@ pub enum BlockEntity {
     DaylightDetector,
     /// `ChiseledBookShelfBlockEntity`: a `Container` of six one-book slots.
     ChiseledBookshelf(Box<ChiseledBookshelf>),
+    /// A code mod's block entity (mod API 0.4, `crate::mod_machines`).
+    Mod(Box<ModMachine>),
+}
+/// What the game keeps of a mod's block entity: its slots, and the mod's own
+/// saved bytes. The mod's state itself lives in the runtime under `handle`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ModMachine {
+    /// The block's id, which is also the saved block entity id.
+    pub block: &'static str,
+    pub slots: Vec<Option<ItemStack>>,
+    /// Whether the mod ticks it.
+    pub ticks: bool,
+    /// The runtime's handle for it: 0 until the first tick creates it there.
+    pub handle: u32,
+    /// The bytes the chunk held for the mod, handed to `create` once.
+    pub saved: Vec<u8>,
 }
 /// `ChiseledBookShelfBlockEntity`: six slots and `lastInteractedSlot`.
 #[derive(Clone, Debug, PartialEq)]

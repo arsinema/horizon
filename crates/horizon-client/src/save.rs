@@ -473,6 +473,13 @@ pub fn encode_block_entity(
             entries.push(("Items", encode_items(&b.items)));
             entries.push(("last_interacted_slot", Tag::Int(b.last_slot)));
         }
+        // A code mod's block entity: its slots, and the bytes the mod saved.
+        BlockEntity::Mod(m) => {
+            entries.push(("Items", encode_items(&m.slots)));
+            if !m.saved.is_empty() {
+                entries.push(("ModData", Tag::ByteArray(m.saved.clone())));
+            }
+        }
         // CampfireBlockEntity.saveAdditional.
         BlockEntity::Campfire(c) => {
             entries.push(("Items", encode_items(&c.items)));
@@ -717,6 +724,12 @@ pub fn decode_block_entity(tag: &Tag) -> Option<((i32, i32, i32), crate::contain
                 b.items[slot] = item;
             }
             b.last_slot = int("last_interacted_slot").unwrap_or(-1);
+        }
+        BlockEntity::Mod(m) => {
+            m.slots = decode_items(tag.get("Items"), m.slots.len());
+            if let Some(Tag::ByteArray(bytes)) = tag.get("ModData") {
+                m.saved = bytes.clone();
+            }
         }
         // CampfireBlockEntity.loadAdditional: missing time arrays stay zeros.
         BlockEntity::Campfire(c) => {
@@ -4482,6 +4495,32 @@ mod tests {
         assert!(back.triggered);
         assert_eq!(back.crafting_ticks, 3);
         assert_eq!(back.redstone_signal(), 2);
+    }
+    #[test]
+    fn mod_block_entity_round_trips() {
+        use crate::containers::BlockEntity;
+        let _guard = crate::mod_machines::TEST_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        crate::mod_machines::set([("save_mod:press".to_owned(), 3, true)]);
+        let Some(BlockEntity::Mod(mut m)) = BlockEntity::for_block("save_mod:press") else {
+            panic!("no mod block entity");
+        };
+        assert_eq!((m.slots.len(), m.ticks, m.handle), (3, true, 0));
+        m.slots[1] = Some(crate::items::ItemStack::new("minecraft:iron_ingot", 7));
+        m.saved = vec![1, 2, 3];
+        let tag = encode_block_entity((1, 2, 3), &BlockEntity::Mod(m), "save_mod:press");
+        let (pos, back) = decode_block_entity(&tag).expect("mod block entity");
+        assert_eq!(pos, (1, 2, 3));
+        let BlockEntity::Mod(back) = back else {
+            panic!("not a mod block entity");
+        };
+        assert_eq!(back.block, "save_mod:press");
+        assert_eq!(back.slots[1].as_ref().map(|s| s.count), Some(7));
+        assert_eq!(back.saved, vec![1, 2, 3]);
+        // With its mod gone, the chunk's entry is not loaded.
+        crate::mod_machines::set([]);
+        assert!(decode_block_entity(&tag).is_none());
     }
     #[test]
     fn campfire_block_entity_round_trips() {

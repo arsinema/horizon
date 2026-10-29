@@ -40,6 +40,10 @@ use {
 pub(super) struct ModsState {
     #[cfg(feature = "mods")]
     pub(super) mods: Mods,
+    /// The properties of mod blocks with a block entity and the values each
+    /// allows, by block (`machine`'s `set-property` checks against them).
+    #[cfg(feature = "mods")]
+    pub(super) machine_props: std::collections::HashMap<String, Vec<(String, Vec<String>)>>,
     /// Capability `input`: a claimed item's use while the button is down.
     #[cfg(feature = "mods")]
     pub(super) using: Option<super::mod_input::ModUse>,
@@ -312,6 +316,7 @@ impl Game<'_> {
         self.mods.screen = None;
         // Content mods may have changed the items: remade on the next read.
         self.mods.recipes = None;
+        self.register_mod_machines();
         self.list_mods();
         self.sync_mod_commands();
         self.show_mod_output();
