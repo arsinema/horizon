@@ -55,7 +55,7 @@ pub fn menu_for(slots: usize) -> Option<&'static str> {
     match slots {
         5 => Some("minecraft:hopper"),
         9 => Some("minecraft:generic_3x3"),
-        n if n % 9 == 0 && n <= 54 => Some(ROWS[n / 9 - 1]),
+        n if n > 0 && n % 9 == 0 && n <= 54 => Some(ROWS[n / 9 - 1]),
         _ => None,
     }
 }
