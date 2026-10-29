@@ -41,6 +41,30 @@ pub fn lookup(block: &str) -> Option<MachineType> {
     known.iter().find(|t| t.block == block).copied()
 }
 
+/// The vanilla menu that shows a machine of `slots` slots (a chest-like grid,
+/// the hopper's row or the dispenser's square), none for other counts.
+pub fn menu_for(slots: usize) -> Option<&'static str> {
+    const ROWS: [&str; 6] = [
+        "minecraft:generic_9x1",
+        "minecraft:generic_9x2",
+        "minecraft:generic_9x3",
+        "minecraft:generic_9x4",
+        "minecraft:generic_9x5",
+        "minecraft:generic_9x6",
+    ];
+    match slots {
+        5 => Some("minecraft:hopper"),
+        9 => Some("minecraft:generic_3x3"),
+        n if n % 9 == 0 && n <= 54 => Some(ROWS[n / 9 - 1]),
+        _ => None,
+    }
+}
+
+/// A machine screen's title: the block's name key (`block.<mod>.<path>`).
+pub fn title_key(block: &str) -> String {
+    format!("block.{}", block.replace(':', "."))
+}
+
 /// Tests share the one registry: they take this to run one at a time.
 #[cfg(test)]
 pub static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -49,6 +73,15 @@ pub static TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 mod tests {
     use super::*;
 
+    #[test]
+    fn menus_by_slot_count() {
+        assert_eq!(menu_for(5), Some("minecraft:hopper"));
+        assert_eq!(menu_for(9), Some("minecraft:generic_3x3"));
+        assert_eq!(menu_for(18), Some("minecraft:generic_9x2"));
+        assert_eq!(menu_for(54), Some("minecraft:generic_9x6"));
+        assert_eq!((menu_for(3), menu_for(0), menu_for(63)), (None, None, None));
+        assert_eq!(title_key("my_mod:press"), "block.my_mod.press");
+    }
     #[test]
     fn registers_and_replaces() {
         let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());

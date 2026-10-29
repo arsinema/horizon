@@ -863,6 +863,30 @@ impl Game<'_> {
                 Slots::Double(other, pos)
             };
             ("minecraft:generic_9x6", "container.chestDouble", halves)
+        } else if let Some(BlockEntity::Mod(m)) = self.world.block_entities.get(&pos) {
+            // A code mod's machine: a vanilla grid menu over its slots.
+            let Some(menu) = horizon_client::mod_machines::menu_for(m.slots.len()) else {
+                return false;
+            };
+            let title = horizon_client::mod_machines::title_key(m.block);
+            let Some(items) = host
+                .hub
+                .guest(conn)
+                .and_then(|g| Slots::Block(pos).read(&self.world, g))
+            else {
+                return false;
+            };
+            self.guest_container_closed(host, conn);
+            self.lan_station_closed(host, conn, None);
+            host.hub.open_container(
+                conn,
+                menu,
+                horizon_protocol::text::translatable(&title, &[]),
+                pos,
+                Slots::Block(pos),
+                items,
+            );
+            return true;
         } else {
             let Some(BlockEntity::Chest(items)) = self.world.block_entities.get(&pos) else {
                 return false;

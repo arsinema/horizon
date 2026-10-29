@@ -12,7 +12,7 @@ folder, loads no runtime and plays exactly like vanilla 26.3.
 
 | Part | Where | State |
 |---|---|---|
-| The contract (WIT) | `crates/horizon-mod-sdk/wit/horizon.wit` | 0.1: log, game-read, chat, hud, storage, command, ui; tick, frame, chat and command hooks. 0.4 preview: block entities (no menus yet) |
+| The contract (WIT) | `crates/horizon-mod-sdk/wit/horizon.wit` | 0.1: log, game-read, chat, hud, storage, command, ui; tick, frame, chat and command hooks. 0.4 preview: block entities (grid menus only) |
 | SDK for mod authors | `crates/horizon-mod-sdk` | 0.1 |
 | Example mods | `crates/horizon-mod-sdk/examples/coords-hud`, `examples/predator-missile` | coordinates, facing and time HUD, `/where`, `/coords`; `/missile`, a guided missile from vanilla commands |
 | Horizon's official mods | `mods/official/` | the extras moving to the registry: FPS Counter (`fps-overlay`), Keystrokes, Zoom, Minimap; Far View (`far-view`), distant terrain; and Recipes, a recipe viewer |
@@ -471,8 +471,13 @@ none.
 The first piece of the machines tier ([research/code-mods-plan.md](research/code-mods-plan.md)):
 a mod with `api = "0.4"` and capability `block-entities` gives its own blocks
 block entities whose code ticks in the sandbox. The runtime, the SDK and the
-game have it: no menu yet (a player cannot open a machine's slots), hoppers
-reach them as they reach any container.
+game have it. A machine opens in a vanilla grid menu chosen by its slot count
+(5: the hopper's, 9: the dispenser's, a multiple of 9 up to 54: chest rows;
+other counts do not open yet) on the server thread, a LAN host and the
+dedicated server, titled `block.<mod>.<path>`; the block must use a template
+that opens a menu (a barrel, a dispenser). `--in-frame` has no machine menus.
+Hoppers reach the slots as they reach any container. The menu has no progress
+bars yet (`data` is not shown).
 
 | Part | What |
 |---|---|
